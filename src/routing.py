@@ -9,37 +9,45 @@ class Routing:
         self.adjacencies = []
         self.neighbors = list(self.LSDB[self.ID])
         self.hello_queue = queue.Queue()
-        self.ask_queue = queue.Queue()
         self.index_queue = queue.Queue()
+        self.ask_queue = queue.Queue()
         self.LSA_queue = queue.Queue()
+        self.from_adjacencies_queue = queue.Queue()
+
+    def modify_LSA(self, routings, LSA):
+        self.neighbors = list(self.LSDB[self.ID])
+        self.LSDB[self.ID] = LSA
+        for i in self.adjacencies:
+            if i not in list(self.LSDB[self.ID]):
+                self.adjacencies.remove(i)
+        self._tell_adjacencies(routings, self.ID, LSA, [])
 
     async def send_hello(self, routings):
-        for neighbor in self.neighbors:
+        for neighbor in list(self.LSDB[self.ID]):
             print(f'{self.ID} sends hello to {neighbor}')
-            routings[neighbor].hello_queue.put(self.ID)
+            routings[neighbor].hello_queue.put((self.ID, self.LSDB[self.ID][neighbor]))
 
-    async def check_connection(self):
-        neighbors = self.neighbors[::]
+    async def check_connection(self, routings):
         while not self.hello_queue.empty():
-            temp = self.hello_queue.get()
-            if temp not in self.neighbors:
-                self.neighbors.append(temp)
-                # 新邻居 cost 1
-                self.LSDB[self.ID][temp] = 1
-            else:
-                neighbors.remove(temp)
-        for i in neighbors:
-            # 断路
-            self.neighbors.remove(i)
-            self.LSDB[self.ID].pop(i)
+            ID, cost = self.hello_queue.get()
+            if not (ID in list(self.LSDB[self.ID]) or ID in self.neighbors):
+                print(f'{self.ID} is one-way connected by {ID}')
+            elif ID in list(self.LSDB[self.ID]) and ID not in self.neighbors:
+                print(f'{self.ID} new connects with {ID}')
+                self._tell_adjacencies(routings, self.ID, self.LSDB[self.ID], [])
+            elif ID not in list(self.LSDB[self.ID]):
+                print(
+                    f'{self.ID} disconnects {ID}, but {ID} can still connect to {self.ID}'
+                )
+                self._tell_adjacencies(routings, self.ID, self.LSDB[self.ID], [])
+        self.neighbors = list(self.LSDB[self.ID])
 
     async def send_LSA_index(self, routings):
-        for neighbor in self.neighbors:
+        for neighbor in list(self.LSDB[self.ID]):
             print(f'{self.ID} sends LSA index to {neighbor}')
             routings[neighbor].index_queue.put((self.ID, list(self.LSDB)))
 
     async def receive_LSA_index_then_ask(self, routings):
-        # TODO 此任务应当一直运行
         while not self.index_queue.empty():
             source, IDs = self.index_queue.get()
             for ID in IDs:
@@ -53,11 +61,35 @@ class Routing:
             print(f'{self.ID} sends {needer} {ID}\'s LSA')
             routings[needer].LSA_queue.put((ID, self.LSDB[ID]))
 
-    async def receive_LSA_then_update(self, routings):
-        # TODO 触发更新时向邻接发送更新信息
+    async def update_from_neighbors(self, routings):
         while not self.LSA_queue.empty():
             ID, LSA = self.LSA_queue.get()
             self.LSDB[ID] = LSA
+            self._tell_adjacencies(routings, ID, LSA, [])
 
+    async def get_adjacencies(self, routings):
+        while not self.index_queue.empty():
+            ID, LSA_index = self.index_queue.get()
+            if ID not in self.adjacencies and set(self.LSDB) == set(LSA_index):
+                self.adjacencies.append(ID)
 
-# TODO 判断是否邻接
+    async def update_from_adjacencies(self, routings):
+        while not self.from_adjacencies_queue.empty():
+            ID, LSA, white_IDs = self.from_adjacencies_queue.get()
+            self.LSDB[ID] = LSA
+            self._tell_adjacencies(routings, ID, LSA, white_IDs[::])
+
+    def _tell_adjacencies(self, routings, ID, LSA, white_IDs):
+        white_IDs.append(self.ID)
+        for adjacency in self.adjacencies:
+            if adjacency in white_IDs:
+                continue
+            print(
+                f'{self.ID} tells adjacency {adjacency} new LSA: {LSA} white_IDs: {white_IDs} {id(white_IDs)}'
+            )
+            routings[adjacency].from_adjacencies_queue.put((ID, LSA, white_IDs))
+
+    async def show_info(self):
+        print(f'{self.ID}:\n{self.LSDB}')
+        print(f'{self.adjacencies}')
+        print(f'{list(self.LSDB[self.ID])}')
