@@ -33,7 +33,7 @@ class Routing:
             if not (ID in list(self.LSDB[self.ID]) or ID in self.neighbors):
                 print(f'{self.ID} is one-way connected by {ID}')
             elif ID in list(self.LSDB[self.ID]) and ID not in self.neighbors:
-                print(f'{self.ID} new connects with {ID}')
+                print(f'{self.ID} newly two-way connects with {ID}')
                 self._tell_adjacencies(routings, self.ID, self.LSDB[self.ID], [])
             elif ID not in list(self.LSDB[self.ID]):
                 print(
