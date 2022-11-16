@@ -60,6 +60,6 @@ if __name__ == '__main__':
         main()
         time.sleep(0)
     modify_LSAs()
-    for i in range(8):
+    for i in range(5):
         main()
         time.sleep(0)
