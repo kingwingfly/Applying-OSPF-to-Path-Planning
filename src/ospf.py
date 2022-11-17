@@ -1,4 +1,6 @@
+from __future__ import annotations
 import asyncio
+
 
 states = {
     1: 'Down',
@@ -40,7 +42,12 @@ Area_types = {
 class Routing:
     # todo auth与password认证
     def __init__(
-        self, Id: int, priority: int, AreaId: int, version: str, neighbors
+        self,
+        Id: int,
+        priority: int,
+        AreaId: int,
+        version: str,
+        neighbors: list[Routing],
     ) -> None:
         self.Id = Id
         self.priority = priority
@@ -57,18 +64,24 @@ class Routing:
         self.wait_time = 1
         self.hello_queue = asyncio.Queue()
 
-    def modify_neighbors(self, neighbors):
+    def modify_neighbors(self, neighbors: list[Routing]):
+        """修改邻居
+
+        Args:
+            neighbors list[Routing]: 新的邻居的Routing对象列表
+        """
+        self.neighbors: dict[int, Routing] = {}
         for neighbor in neighbors:
             self.save(neighbor)
             self.chstt(neighbor, 1)
 
-    def modify_Id(self, Id):
+    def modify_Id(self, Id: int):
         self.Id = Id
 
-    def modify_AreaId(self, AreaId):
+    def modify_AreaId(self, AreaId: int):
         self.AreaId = AreaId
 
-    def modify_priority(self, priority):
+    def modify_priority(self, priority: int):
         self.priority = priority
 
     def generate_hello(self):
@@ -111,7 +124,7 @@ class Routing:
         """
         ...
 
-    def save(self, neighbor):
+    def save(self, neighbor: Routing):
         """传入一个Routing对象
         将其Id与其关联并存于neighbors中
 
@@ -120,7 +133,7 @@ class Routing:
         """
         self.neighbors[neighbor.Id] = neighbor
 
-    def chstt(self, neighbor, state):
+    def chstt(self, neighbor: Routing, state: int):
         """change state 的缩写
         修改与neighbor的连接状态
 
@@ -130,7 +143,7 @@ class Routing:
         """
         self.connection_states[neighbor.Id] = state
 
-    def get_neighbor(self, Id):
+    def get_neighbor(self, Id: id) -> Routing:
         """通过Id从neighbors中取得Routing对象
 
         Args:
@@ -141,7 +154,7 @@ class Routing:
         """
         return self.neighbors[Id]
 
-    def get_state(self, Id):
+    def get_state(self, Id: int) -> int:
         """通过Id取得于该Id对应Routing对象连接的状态码
 
         Args:
@@ -160,6 +173,7 @@ class Routing:
                 # 发送信息未得到回应，链路状态为attempt
                 self.chstt(neighbor, 1.5)
             await asyncio.sleep(self.wait_time)
+        # todo 四轮hello没有得到回应，状态从attempt回到down
 
     async def process_hello(self):
         while True:
@@ -172,7 +186,7 @@ class Routing:
                 neighbor,
                 neighbors,
                 dr,
-                bdr
+                bdr,
             ) = await self.hello_queue.get()
             if Id == self.Id or AreaId != self.AreaId or version != self.version:
                 continue
@@ -194,21 +208,18 @@ class Routing:
                         self.BDR = bdr
 
 
-        # todo 四轮hello没有得到回应，状态从attempt回到down
-
-
 class Area:
     def __init__(self):
         ...
 
 
-def get_neighbors(routings, lst):
+def get_neighbors(routings: list[Routing], lst: list[int]):
     for i in lst:
         yield routings[i]
 
 
 if __name__ == '__main__':
-    routings = [Routing(i, 0, '0.1.0', []) for i in range(5)]
-    routing = Routing(5, 0, '0.1.0', [])
+    routings = [Routing(i, 0, 0, '0.1.0', []) for i in range(5)]
+    routing = Routing(5, 0, 0, '0.1.0', [])
     rest = routing
     print(rest)
